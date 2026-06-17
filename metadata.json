@@ -1,0 +1,6 @@
+{
+  "name": "NearbySpace",
+  "description": "Discover and book nearby coworking spaces, shared offices, meeting rooms, and hot desks.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
