@@ -17,9 +17,9 @@ export default function TechDocs() {
 -- Enable UUID Extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. USERS TABLE (Supports standard roles)
+-- 1. USERS TABLE
 CREATE TABLE users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   phone VARCHAR(50),
@@ -29,66 +29,54 @@ CREATE TABLE users (
   registered_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. SPACES TABLE (Coworking resources)
+-- 2. SPACES TABLE
 CREATE TABLE spaces (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
   description TEXT NOT NULL,
-  photos TEXT[] NOT NULL, -- Array of image links
+  photos TEXT[] NOT NULL,
   address TEXT NOT NULL,
+  city VARCHAR(255) NOT NULL,
+  locality VARCHAR(255) NOT NULL,
   latitude DOUBLE PRECISION NOT NULL,
   longitude DOUBLE PRECISION NOT NULL,
   price_per_day NUMERIC(10, 2) NOT NULL,
   price_per_hour NUMERIC(10, 2) NOT NULL,
-  amenities TEXT[] NOT NULL, -- Array of strings e.g. WiFi, AC
+  amenities TEXT[] NOT NULL,
   is_approved BOOLEAN DEFAULT FALSE,
   owner_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  owner_phone VARCHAR(50),
   total_seats INT DEFAULT 10,
   available_seats INT DEFAULT 10,
-  availability VARCHAR(50) DEFAULT 'all' CHECK (availability IN ('all', 'weekdays', 'weekends'))
+  availability VARCHAR(50) DEFAULT 'all' CHECK (availability IN ('all', 'weekdays', 'weekends')),
+  rating NUMERIC(3, 2) DEFAULT 0.0,
+  reviews_count INT DEFAULT 0
 );
 
--- 3. BOOKINGS TABLE (Seat reservations)
+-- 3. BOOKINGS TABLE
 CREATE TABLE bookings (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   space_id UUID REFERENCES spaces(id) ON DELETE CASCADE,
+  space_name VARCHAR(255) NOT NULL,
+  space_photo TEXT NOT NULL,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  user_name VARCHAR(255) NOT NULL,
   booking_date DATE NOT NULL,
-  booking_type VARCHAR(50) NOT NULL CHECK (booking_type IN ('hourly', 'daily')),
+  duration_days INT,
   start_time TIME,
   end_time TIME,
+  booking_type VARCHAR(50) NOT NULL CHECK (booking_type IN ('hourly', 'daily')),
   seats_booked INT DEFAULT 1,
   total_price NUMERIC(10, 2) NOT NULL,
   status VARCHAR(50) DEFAULT 'confirmed' CHECK (status IN ('pending', 'confirmed', 'cancelled')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 4. REVIEWS TABLE (User star reviews with feedback comments)
-CREATE TABLE reviews (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  space_id UUID REFERENCES spaces(id) ON DELETE CASCADE,
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  rating NUMERIC(2, 1) CHECK (rating >= 1.0 AND rating <= 5.0),
-  comment TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- 5. FAVORITES TABLE (Save list)
-CREATE TABLE favorites (
-  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-  space_id UUID REFERENCES spaces(id) ON DELETE CASCADE,
-  PRIMARY KEY (user_id, space_id)
 );`;
 
   const migrationCode = `-- Supabase Schema & Initial Seed Migration
--- Path: /supabase/migrations/20260617000000_nearby_space_init.sql
-
 -- Setup Row Level Security (RLS) on tables for maximum protection
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE spaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
-ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
 
 -- Dynamic Policies: Allow read-only access to approved spaces
 CREATE POLICY "Public read approved spaces" ON spaces
@@ -102,125 +90,95 @@ CREATE POLICY "Owners manage own spaces" ON spaces
 CREATE POLICY "Users read own bookings" ON bookings
   FOR SELECT USING (auth.uid() = user_id);
 
--- Initial Mock Data Seeding (PostgreSQL Insert Queries)
+-- Seed Data Setup (Example user and space)
 INSERT INTO users (id, name, email, phone, role, avatar) VALUES
-('b3017a4c-5674-4b5c-a111-e6fedc7b919d'::UUID, 'Sarah Jenkins', 'sarah.j@example.com', '+1 (555) 123-4567', 'user', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150'),
-('e6401f78-2287-43cf-a0e2-e1927361a9aa'::UUID, 'David Miller', 'david@nearbyspace.com', '+1 (555) 987-6543', 'owner', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150');
+('550e8400-e29b-41d4-a716-446655440000', 'Rahul Sharma', 'rahul.sharma@gmail.com', '+91 98765 43210', 'user', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150');
 
-INSERT INTO spaces (id, name, description, photos, address, latitude, longitude, price_per_day, price_per_hour, amenities, is_approved, owner_id) VALUES
-('7336ed02-0e86-4ef3-9c88-7ffb2a096c4d'::UUID, 
- 'The Red Brick Collective', 
- 'A stylish, industrial SOMA warehouse converted into a thriving collaborative hub.', 
- ARRAY['https://images.unsplash.com/photo-1497366216548-37526070297c?w=800'], 
- '450 Townsend St, San Francisco, CA 94107', 
- 37.7785, 
- -122.4114, 
- 45.00, 
- 8.00, 
- ARRAY['WiFi', 'AC', 'Parking', 'Cafeteria', 'Power Backup', 'Printer'], 
- true, 
- 'e6401f78-2287-43cf-a0e2-e1927361a9aa'::UUID);`;
+INSERT INTO spaces (id, name, description, photos, address, city, locality, latitude, longitude, price_per_day, price_per_hour, amenities, is_approved, owner_id) VALUES
+('e6401f78-1111-43cf-a0e2-e1927361a9aa', 'Bengaluru Tech Sanctuary', 'A premium, modern workspace featuring raw wooden aesthetic desks...', ARRAY['https://images.unsplash.com/photo-1497366216548-37526070297c?w=800'], 'Indiranagar, Bengaluru', 'Bengaluru', 'Indiranagar', 12.9784, 77.6408, 450.00, 80.00, ARRAY['WiFi', 'AC'], true, '550e8400-e29b-41d4-a716-446655440001');`;
 
-  const apiCode = `// Express.js & TypeScript Server Endpoints (Proxy Server)
-// File: /server/api.ts
+  const apiCode = `// Cloudflare Worker API proxy for NearbySpace
+// File: /worker/index.ts
 
-import express, { Request, Response } from 'express';
 import { createClient } from '@supabase/supabase-js';
 
-const router = express.Router();
+export interface Env {
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+}
 
-// Initialize Supabase Client dynamically
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-);
-
-/**
- * 1. GET /api/spaces/nearby
- * Fetch co-working spaces sorted by Haversine Distance
- */
-router.get('/spaces/nearby', async (req: Request, res: Response) => {
-  try {
-    const lat = parseFloat(req.query.lat as string);
-    const lng = parseFloat(req.query.lng as string);
-    const maxDist = parseFloat(req.query.distance as string) || 10; // in miles
-
-    if (isNaN(lat) || isNaN(lng)) {
-      return res.status(400).json({ error: "Missing physical GPS query parameters lat/lng" });
-    }
-
-    // Query active records
-    const { data: spaces, error } = await supabase
-      .from('spaces')
-      .select('*')
-      .eq('is_approved', true);
-
-    if (error) throw error;
-
-    // Haversine calculation sorting on Express server
-    const sorted = spaces.map(space => {
-      const R = 3958.8; // Earth radius in miles
-      const dLat = (space.latitude - lat) * (Math.PI / 180);
-      const dLon = (space.longitude - lng) * (Math.PI / 180);
-      const a = 
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat * (Math.PI / 180)) * Math.cos(space.latitude * (Math.PI / 180)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const dist = R * c;
-
-      return { ...space, distance: Math.round(dist * 10) / 10 };
-    })
-    .filter(space => space.distance <= maxDist)
-    .sort((a, b) => a.distance - b.distance);
-
-    res.json(sorted);
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-/**
- * 2. POST /api/bookings/create
- * Secure booking processor
- */
-router.post('/bookings/create', async (req: Request, res: Response) => {
-  try {
-    const { spaceId, userId, date, type, seats, totalPrice, startTime, endTime } = req.body;
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+    const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY);
     
-    const { data, error } = await supabase
-      .from('bookings')
-      .insert({
-        space_id: spaceId,
-        user_id: userId,
-        booking_date: date,
-        booking_type: type,
-        seats_booked: seats,
-        total_price: totalPrice,
-        start_time: startTime,
-        end_time: endTime,
-        status: 'confirmed'
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    res.status(201).json(data);
-  } catch (err: any) {
-    res.status(400).json({ error: err.message });
+    // CORS headers
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+    
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
+    
+    try {
+      if (url.pathname === "/api/spaces/nearby" && request.method === "GET") {
+        const lat = parseFloat(url.searchParams.get("lat") || "");
+        const lng = parseFloat(url.searchParams.get("lng") || "");
+        const maxDist = parseFloat(url.searchParams.get("distance") || "10");
+        
+        if (isNaN(lat) || isNaN(lng)) {
+          return new Response(JSON.stringify({ error: "Missing coordinates lat/lng" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        
+        const { data: spaces, error } = await supabase
+          .from("spaces")
+          .select("*")
+          .eq("is_approved", true);
+          
+        if (error) throw error;
+        
+        // Haversine sorting (km)
+        const sorted = (spaces || []).map(space => {
+          const R = 6371; // Earth radius in km
+          const dLat = (space.latitude - lat) * (Math.PI / 180);
+          const dLon = (space.longitude - lng) * (Math.PI / 180);
+          const a = 
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat * (Math.PI / 180)) * Math.cos(space.latitude * (Math.PI / 180)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const dist = R * c;
+          return { ...space, distance: Math.round(dist * 10) / 10 };
+        })
+        .filter(space => space.distance <= maxDist)
+        .sort((a, b) => a.distance - b.distance);
+        
+        return new Response(JSON.stringify(sorted), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+      
+      return new Response(JSON.stringify({ error: "Endpoint not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    } catch (err: any) {
+      return new Response(JSON.stringify({ error: err.message }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
   }
-});
+};`;
 
-export default router;`;
-
-  const vercelCode = `# NearbySpace Vercel & Next.js production deployment guide
+  const vercelCode = `# NearbySpace Vercel & React (Vite) production deployment guide
 # Path: /README.md
-
-## Production Tech Stack Prerequisites
-- Next.js 15+ (App Router structure)
-- Tailwind CSS (Fluid components styling)
-- PostgreSQL & Supabase (Database + Row Level Security)
-- Google Maps Web JavaScript SDK
 
 ## Live Vercel Environment Configuration
 1. Open Vercel dashboard, click **Add New Project**, and select imports.
@@ -228,15 +186,14 @@ export default router;`;
 
 \`\`\`env
 # Supabase Secure API Access keys
-NEXT_PUBLIC_SUPABASE_URL="https://your-supabase-db.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-role-key-ey..."
-SUPABASE_SERVICE_ROLE_KEY="your-secret-service-role-key-ey..."
+VITE_SUPABASE_URL="https://your-supabase-db.supabase.co"
+VITE_SUPABASE_ANON_KEY="your-anon-role-key-ey..."
 
-# Client Side Google Maps Engine credentials
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="AIzaSyYourKey..."
+# Cloudflare Configuration
+VITE_CLOUDFLARE_WORKER_URL="https://nearbyspacec.aaraainfrastructure.workers.dev/"
 \`\`\`
 
-3. Set NextJS framework presets, click **Deploy**.
+3. Set Vite framework presets, click **Deploy**.
 4. In Supabase Dashboard, run the standard PostgreSQL DB schema inside Sql Editor to allocate migrations.`;
 
   const getCodeContent = () => {

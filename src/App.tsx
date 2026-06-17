@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { User, Space, Booking, Review, Enquiry } from './types';
 import { INITIAL_USERS, INITIAL_SPACES, INITIAL_BOOKINGS, INITIAL_REVIEWS } from './mockData';
 import { DEFAULT_LAT, DEFAULT_LNG, calculateDistance, formatCurrency } from './utils';
+import { spacesService } from './services/spacesService';
+import { bookingsService } from './services/bookingsService';
+import { usersService } from './services/usersService';
+import { reviewsService } from './services/reviewsService';
+import { favouritesService } from './services/favouritesService';
+import { enquiriesService } from './services/enquiriesService';
+import { supabase } from './lib/supabase';
+
 
 // Icons
 import { 
@@ -31,37 +39,14 @@ const CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
 };
 
 export default function App() {
-  // Database States loaded from LocalStorage
-  const [spaces, setSpaces] = useState<Space[]>(() => {
-    const saved = localStorage.getItem('ns_spaces');
-    return saved ? JSON.parse(saved) : INITIAL_SPACES;
-  });
-
-  const [bookings, setBookings] = useState<Booking[]>(() => {
-    const saved = localStorage.getItem('ns_bookings');
-    return saved ? JSON.parse(saved) : INITIAL_BOOKINGS;
-  });
-
-  const [reviews, setReviews] = useState<Review[]>(() => {
-    const saved = localStorage.getItem('ns_reviews');
-    return saved ? JSON.parse(saved) : INITIAL_REVIEWS;
-  });
-
-  const [usersList, setUsersList] = useState<User[]>(() => {
-    const saved = localStorage.getItem('ns_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
-  });
-
-  const [favorites, setFavorites] = useState<string[]>(() => {
-    const saved = localStorage.getItem('ns_favorites');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Direct Lead Enquiries state
-  const [enquiries, setEnquiries] = useState<Enquiry[]>(() => {
-    const saved = localStorage.getItem('ns_enquiries');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Database States loaded from Supabase
+  const [spaces, setSpaces] = useState<Space[]>(INITIAL_SPACES);
+  const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
+  const [reviews, setReviews] = useState<Review[]>(INITIAL_REVIEWS);
+  const [usersList, setUsersList] = useState<User[]>(INITIAL_USERS);
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   // State to hold active visual notification toasts
   interface ToastItem {
@@ -94,12 +79,21 @@ export default function App() {
   const [userLng, setUserLng] = useState(DEFAULT_LNG);
   const [locationStatus, setLocationStatus] = useState<'default' | 'detected'>('default');
 
-  // Currently authenticated user (By default, seed with Sarah Jenkins Customer for instant testing)
+  // Currently authenticated user (By default, seed with Rahul Sharma Customer for instant testing)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     const saved = localStorage.getItem('ns_current_user');
     if (saved) return JSON.parse(saved);
     // default seed client
-    return INITIAL_USERS[0];
+    return {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      name: 'Rahul Sharma',
+      email: 'rahul.sharma@gmail.com',
+      phone: '+91 98765 43210',
+      role: 'user',
+      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150',
+      isBlocked: false,
+      registeredAt: '2026-02-15'
+    };
   });
 
   // App Navigation layout views:
@@ -124,30 +118,6 @@ export default function App() {
 
   // Sync to local storage
   useEffect(() => {
-    localStorage.setItem('ns_spaces', JSON.stringify(spaces));
-  }, [spaces]);
-
-  useEffect(() => {
-    localStorage.setItem('ns_bookings', JSON.stringify(bookings));
-  }, [bookings]);
-
-  useEffect(() => {
-    localStorage.setItem('ns_reviews', JSON.stringify(reviews));
-  }, [reviews]);
-
-  useEffect(() => {
-    localStorage.setItem('ns_users', JSON.stringify(usersList));
-  }, [usersList]);
-
-  useEffect(() => {
-    localStorage.setItem('ns_favorites', JSON.stringify(favorites));
-  }, [favorites]);
-
-  useEffect(() => {
-    localStorage.setItem('ns_enquiries', JSON.stringify(enquiries));
-  }, [enquiries]);
-
-  useEffect(() => {
     localStorage.setItem('ns_verified_leads', JSON.stringify(verifiedSpaceIds));
   }, [verifiedSpaceIds]);
 
@@ -158,6 +128,40 @@ export default function App() {
       localStorage.removeItem('ns_current_user');
     }
   }, [currentUser]);
+
+  // Fetch initial data from Supabase
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setIsLoading(true);
+        const fetchedSpaces = await spacesService.fetchAllSpaces();
+        setSpaces(fetchedSpaces);
+
+        const fetchedBookings = await bookingsService.fetchAllBookings();
+        setBookings(fetchedBookings);
+
+        const fetchedReviews = await reviewsService.fetchAllReviews();
+        setReviews(fetchedReviews);
+
+        const fetchedUsers = await usersService.fetchAllUsers();
+        setUsersList(fetchedUsers);
+
+        const fetchedEnquiries = await enquiriesService.fetchEnquiries();
+        setEnquiries(fetchedEnquiries);
+
+        if (currentUser) {
+          const fetchedFavs = await favouritesService.fetchUserFavorites(currentUser.id);
+          setFavorites(fetchedFavs);
+        }
+      } catch (err) {
+        console.error('Failed to load data from Supabase:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [currentUser?.id]);
+
 
   // Geolocation trigger
   const handleDetectGPS = () => {
@@ -202,86 +206,216 @@ export default function App() {
     localStorage.removeItem('ns_current_user');
   };
 
-  const handleToggleFavorite = (spaceId: string) => {
-    setFavorites(prev =>
-      prev.includes(spaceId) ? prev.filter(id => id !== spaceId) : [...prev, spaceId]
-    );
+  const handleToggleFavorite = async (spaceId: string) => {
+    if (!currentUser) {
+      setIsAuthOpen(true);
+      return;
+    }
+    try {
+      const updated = await favouritesService.toggleFavorite(currentUser.id, spaceId);
+      setFavorites(updated);
+    } catch (err) {
+      console.error('Failed to toggle favorite:', err);
+    }
   };
 
-  const handleAddReview = (newReview: Review) => {
-    setReviews(prev => [newReview, ...prev]);
+  const handleAddReview = async (newReview: Review) => {
+    try {
+      const added = await reviewsService.addReview({
+        spaceId: newReview.spaceId,
+        userId: newReview.userId,
+        userName: newReview.userName,
+        userAvatar: newReview.userAvatar,
+        rating: newReview.rating,
+        comment: newReview.comment
+      });
+      setReviews(prev => [added, ...prev]);
 
-    // Recalculate average stars and count in Spaces lists
-    setSpaces(prevSpaces =>
-      prevSpaces.map(sp => {
-        if (sp.id === newReview.spaceId) {
-          const spaceReviews = [newReview, ...reviews.filter(r => r.spaceId === sp.id)];
-          const avg = spaceReviews.reduce((sum, r) => sum + r.rating, 0) / spaceReviews.length;
-          return {
-            ...sp,
-            rating: Math.round(avg * 10) / 10,
-            reviewsCount: spaceReviews.length
-          };
-        }
-        return sp;
-      })
-    );
+      const fetchedSpaces = await spacesService.fetchAllSpaces();
+      setSpaces(fetchedSpaces);
+    } catch (err) {
+      console.error('Failed to add review:', err);
+    }
   };
 
-  const handleConfirmBooking = (newBooking: Booking) => {
-    // Add to bookings record
-    setBookings(prev => [newBooking, ...prev]);
+  const handleConfirmBooking = async (newBooking: Booking) => {
+    try {
+      const added = await bookingsService.createBooking({
+        spaceId: newBooking.spaceId,
+        spaceName: newBooking.spaceName,
+        spacePhoto: newBooking.spacePhoto,
+        userId: newBooking.userId,
+        userName: newBooking.userName,
+        date: newBooking.date,
+        durationDays: newBooking.durationDays,
+        startTime: newBooking.startTime,
+        endTime: newBooking.endTime,
+        type: newBooking.type,
+        seatsBooked: newBooking.seatsBooked,
+        totalPrice: newBooking.totalPrice,
+        status: newBooking.status
+      });
 
-    // Decrease available seats in Space state
-    setSpaces(prevSpaces =>
-      prevSpaces.map(sp => {
-        if (sp.id === newBooking.spaceId) {
-          return {
-            ...sp,
-            availableSeats: Math.max(0, sp.availableSeats - newBooking.seatsBooked)
-          };
-        }
-        return sp;
-      })
-    );
+      setBookings(prev => [added, ...prev]);
+
+      const fetchedSpaces = await spacesService.fetchAllSpaces();
+      setSpaces(fetchedSpaces);
+    } catch (err) {
+      console.error('Failed to confirm booking:', err);
+    }
   };
 
-  const handleCancelBooking = (bookingId: string) => {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (!booking) return;
+  const handleCancelBooking = async (bookingId: string) => {
+    try {
+      const updated = await bookingsService.cancelBooking(bookingId);
+      setBookings(prev =>
+        prev.map(b => b.id === bookingId ? updated : b)
+      );
 
-    setBookings(prev =>
-      prev.map(b => b.id === bookingId ? { ...b, status: 'cancelled' } : b)
-    );
-
-    // Refund/release seats back
-    setSpaces(prevSpaces =>
-      prevSpaces.map(sp => {
-        if (sp.id === booking.spaceId) {
-          return {
-            ...sp,
-            availableSeats: Math.min(sp.totalSeats, sp.availableSeats + booking.seatsBooked)
-          };
-        }
-        return sp;
-      })
-    );
+      const fetchedSpaces = await spacesService.fetchAllSpaces();
+      setSpaces(fetchedSpaces);
+    } catch (err) {
+      console.error('Failed to cancel booking:', err);
+    }
   };
 
-  const handleResetDatabase = () => {
-    setSpaces(INITIAL_SPACES);
-    setBookings(INITIAL_BOOKINGS);
-    setReviews(INITIAL_REVIEWS);
-    setUsersList(INITIAL_USERS);
-    setFavorites([]);
-    setEnquiries([]);
-    setVerifiedSpaceIds([]);
-    setUserLat(DEFAULT_LAT);
-    setUserLng(DEFAULT_LNG);
-    setLocationStatus('default');
-    setCurrentUser(INITIAL_USERS[0]);
-    setViewTab('landing');
-    alert('Mock Database restored to initial default seeds.');
+  const handleResetDatabase = async () => {
+    try {
+      setIsLoading(true);
+      await supabase.from('bookings').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('reviews').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('favorites').delete().neq('user_id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('enquiries').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('spaces').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      await supabase.from('users').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+      for (const u of INITIAL_USERS) {
+        const uuid = u.id === 'usr-1' ? '550e8400-e29b-41d4-a716-446655440000' :
+                     u.id === 'owner-1' ? '550e8400-e29b-41d4-a716-446655440001' :
+                     u.id === 'admin-1' ? '550e8400-e29b-41d4-a716-446655440002' : u.id;
+        await supabase.from('users').insert({
+          id: uuid,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          role: u.role,
+          avatar: u.avatar,
+          is_blocked: u.isBlocked
+        });
+      }
+
+      for (const sp of INITIAL_SPACES) {
+        const uuid = sp.id === 'space-1' ? 'e6401f78-1111-43cf-a0e2-e1927361a9aa' :
+                     sp.id === 'space-2' ? 'e6401f78-2222-43cf-a0e2-e1927361a9aa' :
+                     sp.id === 'space-3' ? 'e6401f78-3333-43cf-a0e2-e1927361a9aa' :
+                     sp.id === 'space-4' ? 'e6401f78-4444-43cf-a0e2-e1927361a9aa' :
+                     sp.id === 'space-5' ? 'e6401f78-5555-43cf-a0e2-e1927361a9aa' :
+                     sp.id === 'space-6' ? 'e6401f78-6666-43cf-a0e2-e1927361a9aa' : sp.id;
+        const ownerUuid = sp.ownerId === 'owner-1' ? '550e8400-e29b-41d4-a716-446655440001' : sp.ownerId;
+        
+        await supabase.from('spaces').insert({
+          id: uuid,
+          name: sp.name,
+          description: sp.description,
+          photos: sp.photos,
+          address: sp.address,
+          city: sp.city,
+          locality: sp.locality,
+          latitude: sp.lat,
+          longitude: sp.lng,
+          price_per_day: sp.pricePerDay,
+          price_per_hour: sp.pricePerHour,
+          amenities: sp.amenities,
+          is_approved: sp.isApproved,
+          owner_id: ownerUuid,
+          owner_phone: sp.ownerPhone,
+          total_seats: sp.totalSeats,
+          available_seats: sp.availableSeats,
+          availability: sp.availability,
+          rating: sp.rating,
+          reviews_count: sp.reviewsCount
+        });
+      }
+
+      for (const b of INITIAL_BOOKINGS) {
+        const uuid = b.id === 'b-1' ? 'b0000000-0000-0000-0000-000000000001' :
+                     b.id === 'b-2' ? 'b0000000-0000-0000-0000-000000000002' : b.id;
+        const spaceUuid = b.spaceId === 'space-1' ? 'e6401f78-1111-43cf-a0e2-e1927361a9aa' :
+                          b.spaceId === 'space-2' ? 'e6401f78-2222-43cf-a0e2-e1927361a9aa' : b.spaceId;
+        const userUuid = b.userId === 'usr-1' ? '550e8400-e29b-41d4-a716-446655440000' : b.userId;
+
+        await supabase.from('bookings').insert({
+          id: uuid,
+          space_id: spaceUuid,
+          space_name: b.spaceName,
+          space_photo: b.spacePhoto,
+          user_id: userUuid,
+          user_name: b.userName,
+          booking_date: b.date,
+          booking_type: b.type,
+          seats_booked: b.seatsBooked,
+          total_price: b.totalPrice,
+          status: b.status,
+          duration_days: b.durationDays,
+          start_time: b.startTime,
+          end_time: b.endTime
+        });
+      }
+
+      for (const r of INITIAL_REVIEWS) {
+        const uuid = r.id === 'r-1' ? 'r0000000-0000-0000-0000-000000000001' :
+                     r.id === 'r-2' ? 'r0000000-0000-0000-0000-000000000002' : r.id;
+        const spaceUuid = r.spaceId === 'space-1' ? 'e6401f78-1111-43cf-a0e2-e1927361a9aa' : r.spaceId;
+        const userUuid = r.userId === 'usr-1' ? '550e8400-e29b-41d4-a716-446655440000' :
+                         r.userId === 'usr-2' ? '550e8400-e29b-41d4-a716-446655440001' : r.userId;
+        await supabase.from('reviews').insert({
+          id: uuid,
+          space_id: spaceUuid,
+          user_id: userUuid,
+          user_name: r.userName,
+          user_avatar: r.userAvatar,
+          rating: r.rating,
+          comment: r.comment
+        });
+      }
+
+      const fetchedSpaces = await spacesService.fetchAllSpaces();
+      setSpaces(fetchedSpaces);
+
+      const fetchedBookings = await bookingsService.fetchAllBookings();
+      setBookings(fetchedBookings);
+
+      const fetchedReviews = await reviewsService.fetchAllReviews();
+      setReviews(fetchedReviews);
+
+      const fetchedUsers = await usersService.fetchAllUsers();
+      setUsersList(fetchedUsers);
+
+      setFavorites([]);
+      setEnquiries([]);
+      setVerifiedSpaceIds([]);
+      setUserLat(DEFAULT_LAT);
+      setUserLng(DEFAULT_LNG);
+      setLocationStatus('default');
+
+      const defaultUser = {
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        name: 'Rahul Sharma',
+        email: 'rahul.sharma@gmail.com',
+        phone: '+91 98765 43210',
+        role: 'user' as const,
+        avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150',
+        isBlocked: false,
+        registeredAt: '2026-02-15'
+      };
+      setCurrentUser(defaultUser);
+      setViewTab('landing');
+      alert('Mock Database restored to initial default seeds.');
+    } catch (err) {
+      console.error('Failed to reset database:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleViewOwnerContact = (space: Space) => {
@@ -289,52 +423,71 @@ export default function App() {
     setIsLeadOpen(true);
   };
 
-  const handleLoginAndVerify = (verifiedUser: User, newEnquiry: Enquiry) => {
-    setEnquiries(prev => [newEnquiry, ...prev]);
-    setVerifiedSpaceIds(prev => [...prev, newEnquiry.spaceId]);
-    setCurrentUser(verifiedUser);
-    
-    // Append to register roster
-    if (!usersList.some(u => u.email === verifiedUser.email)) {
-      setUsersList(prev => [...prev, verifiedUser]);
+  const handleLoginAndVerify = async (verifiedUser: User, newEnquiry: Enquiry) => {
+    try {
+      const existingUser = usersList.find(u => u.email === verifiedUser.email);
+      let dbUserObject = existingUser;
+
+      if (!existingUser) {
+        dbUserObject = await usersService.createUser({
+          name: verifiedUser.name,
+          email: verifiedUser.email,
+          phone: verifiedUser.phone,
+          role: verifiedUser.role,
+          avatar: verifiedUser.avatar
+        });
+        setUsersList(prev => [...prev, dbUserObject!]);
+      }
+
+      const createdEnquiry = await enquiriesService.createEnquiry({
+        spaceId: newEnquiry.spaceId,
+        spaceName: newEnquiry.spaceName,
+        ownerId: newEnquiry.ownerId,
+        userId: dbUserObject!.id,
+        userName: dbUserObject!.name,
+        userEmail: dbUserObject!.email,
+        userPhone: dbUserObject!.phone || '',
+        notifiedGowriEmail: 'gowri7282@gmail.com',
+        ownerNotified: true
+      });
+
+      setEnquiries(prev => [createdEnquiry, ...prev]);
+      setVerifiedSpaceIds(prev => [...prev, createdEnquiry.spaceId]);
+      setCurrentUser(dbUserObject!);
+
+      setIsLeadOpen(false);
+      setLeadTargetSpace(null);
+
+      console.log(`[Notification Service] New Lead Enquiry Processed successfully!`, {
+        event: 'LEAD_NOTIFY',
+        targetSpace: createdEnquiry.spaceName,
+        leadDetails: {
+          userName: createdEnquiry.userName,
+          userEmail: createdEnquiry.userEmail,
+          userPhone: createdEnquiry.userPhone,
+          timestamp: createdEnquiry.timestamp,
+        },
+        sentTo: 'gowri7282@gmail.com'
+      });
+
+      const toastId = `toast-${Date.now()}`;
+      const newToast: ToastItem = {
+        id: toastId,
+        spaceName: createdEnquiry.spaceName,
+        userName: createdEnquiry.userName,
+        userEmail: createdEnquiry.userEmail,
+        userPhone: createdEnquiry.userPhone,
+        notifiedGowriEmail: 'gowri7282@gmail.com',
+        timestamp: createdEnquiry.timestamp
+      };
+      setToasts(prev => [...prev, newToast]);
+
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== toastId));
+      }, 8000);
+    } catch (err) {
+      console.error('Failed to process lead enquiry:', err);
     }
-    
-    setIsLeadOpen(false);
-    setLeadTargetSpace(null);
-    
-    // 1. Mock Notification Service Console Log Trigger
-    console.log(`[Mock Notification Service] New Lead Enquiry Processed successfully!`, {
-      event: 'MOCK_LEAD_NOTIFY',
-      targetSpace: newEnquiry.spaceName,
-      leadDetails: {
-        userName: newEnquiry.userName,
-        userEmail: newEnquiry.userEmail,
-        userPhone: newEnquiry.userPhone,
-        timestamp: newEnquiry.timestamp,
-      },
-      sentTo: 'gowri7282@gmail.com',
-      serviceStatus: 'DISPATCH_OK',
-      channel: 'API / Web Socket Live Push',
-      details: 'Routed immediately via automated mock notification queue.'
-    });
-
-    // 2. Trigger beautiful visual UI toast Alert
-    const toastId = `toast-${Date.now()}`;
-    const newToast: ToastItem = {
-      id: toastId,
-      spaceName: newEnquiry.spaceName,
-      userName: newEnquiry.userName,
-      userEmail: newEnquiry.userEmail,
-      userPhone: newEnquiry.userPhone,
-      notifiedGowriEmail: 'gowri7282@gmail.com',
-      timestamp: newEnquiry.timestamp
-    };
-    setToasts(prev => [...prev, newToast]);
-
-    // Auto dismiss after 8 seconds
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== toastId));
-    }, 8000);
   };
 
   const userHasVerifiedLeadContact = (spaceId: string) => {
@@ -587,6 +740,13 @@ export default function App() {
 
       {/* Main Content Space */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+            <div className="w-12 h-12 border-4 border-slate-200 border-t-[#ed2f39] rounded-full animate-spin"></div>
+            <p className="text-slate-500 font-display text-sm font-semibold tracking-wide animate-pulse">Syncing NearbySpace Database...</p>
+          </div>
+        ) : (
+          <>
 
         {/* VIEW TAB: LANDING / DISCOVERY PAGE */}
         {viewTab === 'landing' && (() => {
@@ -915,7 +1075,7 @@ export default function App() {
 
                         <div className="flex items-center justify-between border-t border-slate-100 pt-3.5 mt-3.5">
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-slate-400">FAre PAID</span>
+                            <span className="text-[10px] uppercase font-bold text-slate-400">FARE PAID</span>
                             <p className="text-sm font-extrabold text-slate-800">{formatCurrency(bk.totalPrice)}</p>
                           </div>
 
@@ -1044,26 +1204,41 @@ export default function App() {
               bookings={bookings}
               enquiries={enquiries}
               usersList={usersList}
-              onApproveSpace={(spaceId) => {
-                setSpaces(prev =>
-                  prev.map(s => s.id === spaceId ? { ...s, isApproved: true } : s)
-                );
-                alert("Listed space approved successfully! It is now live for search on map and list views.");
+              onApproveSpace={async (spaceId) => {
+                try {
+                  const updated = await spacesService.approveSpace(spaceId);
+                  setSpaces(prev => prev.map(s => s.id === spaceId ? updated : s));
+                  alert("Listed space approved successfully! It is now live for search on map and list views.");
+                } catch (err) {
+                  console.error('Failed to approve space:', err);
+                }
               }}
-              onRejectSpace={(spaceId) => {
-                setSpaces(prev => prev.filter(s => s.id !== spaceId));
-                alert("Compliance decline registered. Listed space removed from auditing logs.");
+              onRejectSpace={async (spaceId) => {
+                try {
+                  await spacesService.rejectSpace(spaceId);
+                  setSpaces(prev => prev.filter(s => s.id !== spaceId));
+                  alert("Compliance decline registered. Listed space removed from auditing logs.");
+                } catch (err) {
+                  console.error('Failed to reject space:', err);
+                }
               }}
-              onUpdateUserRole={(userId, role) => {
-                setUsersList(prev =>
-                  prev.map(u => u.id === userId ? { ...u, role: role } : u)
-                );
-                alert(`User permissions updated to ${role.toUpperCase()}`);
+              onUpdateUserRole={async (userId, role) => {
+                try {
+                  const updated = await usersService.updateUserRole(userId, role);
+                  setUsersList(prev => prev.map(u => u.id === userId ? updated : u));
+                  alert(`User permissions updated to ${role.toUpperCase()}`);
+                } catch (err) {
+                  console.error('Failed to update user role:', err);
+                }
               }}
-              onToggleBlockUser={(userId) => {
-                setUsersList(prev =>
-                  prev.map(u => u.id === userId ? { ...u, isBlocked: !u.isBlocked } : u)
-                );
+              onToggleBlockUser={async (userId) => {
+                try {
+                  const updated = await usersService.toggleBlockUser(userId);
+                  setUsersList(prev => prev.map(u => u.id === userId ? updated : u));
+                  alert(updated.isBlocked ? 'User account has been BLOCKED' : 'User account access unblocked.');
+                } catch (err) {
+                  console.error('Failed to toggle block user:', err);
+                }
               }}
               onResetDatabase={handleResetDatabase}
             />
@@ -1081,7 +1256,8 @@ export default function App() {
             <TechDocs />
           </div>
         )}
-
+          </>
+        )}
       </main>
 
       {/* Platform Sandbox Footer */}

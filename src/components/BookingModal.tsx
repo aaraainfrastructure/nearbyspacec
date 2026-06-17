@@ -74,7 +74,7 @@ export default function BookingModal({
 
     setTimeout(() => {
       setIsPaying(false);
-      const bookingId = `b-gen-${Math.floor(100000 + Math.random() * 900000)}`;
+      const bookingId = crypto.randomUUID();
       setConfirmedBookingId(bookingId);
 
       // Create booking record

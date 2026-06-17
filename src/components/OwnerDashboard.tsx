@@ -67,7 +67,7 @@ export default function OwnerDashboard({
     }
 
     const newSpace: Space = {
-      id: `space-owner-${Date.now()}`,
+      id: crypto.randomUUID(),
       name,
       description,
       address,

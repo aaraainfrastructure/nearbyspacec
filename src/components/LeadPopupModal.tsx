@@ -71,7 +71,7 @@ export default function LeadPopupModal({
 
       // Create or update authenticated user
       const loggedInUser: User = {
-        id: currentUser?.id || `usr-google-${Date.now()}`,
+        id: currentUser?.id || crypto.randomUUID(),
         name: googleName || currentUser?.name || 'Verified Indian Visitor',
         email: googleEmail || currentUser?.email || 'visitor@gmail.com',
         phone: '+91 ' + cleanedPhone,
@@ -83,7 +83,7 @@ export default function LeadPopupModal({
 
       // Create lead enquiry entity
       const newEnquiry: Enquiry = {
-        id: `enq-${Date.now()}`,
+        id: crypto.randomUUID(),
         spaceId: space.id,
         spaceName: space.name,
         ownerId: space.ownerId,

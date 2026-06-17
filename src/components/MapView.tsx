@@ -25,14 +25,14 @@ export default function MapView({
   const [zoom, setZoom] = useState(14);
   const [dragMsg, setDragMsg] = useState('');
 
-  // S.F. coordinates bounds to scale layout onto SVG coordinates
-  // S Soma, FiDi, Mission, Nob hill are in this bounding box:
-  // Lat: 37.7500 to 37.8100 (diff 0.0600)
-  // Lng: -122.4500 to -122.3900 (diff 0.0600)
-  const minLat = 37.7500;
-  const maxLat = 37.8200;
-  const minLng = -122.4600;
-  const maxLng = -122.3800;
+  // Dynamic coordinates bounds based on spaces
+  const latValues = spaces.map(s => s.lat);
+  const lngValues = spaces.map(s => s.lng);
+  
+  const minLat = latValues.length > 0 ? Math.min(...latValues) - 0.05 : 12.9;
+  const maxLat = latValues.length > 0 ? Math.max(...latValues) + 0.05 : 28.5;
+  const minLng = lngValues.length > 0 ? Math.min(...lngValues) - 0.05 : 72.8;
+  const maxLng = lngValues.length > 0 ? Math.max(...lngValues) + 0.05 : 80.3;
 
   const getSvgCoordinates = (lat: number, lng: number) => {
     // Convert GPS coordinates to 0-300 SVG viewbox coordinates
@@ -125,10 +125,10 @@ export default function MapView({
           <line x1="70%" y1="0" x2="100%" y2="100%" stroke="#e2e8f0" strokeWidth="1" />
 
           {/* Label Major Streets */}
-          <text x="2%" y="62%" className="fill-slate-400 font-mono text-[8px] tracking-wide font-normal opacity-50 uppercase">Market St</text>
-          <text x="52%" y="45%" className="fill-slate-400 font-mono text-[8px] tracking-wide font-normal opacity-50 uppercase">Montgomery St</text>
-          <text x="18%" y="15%" className="fill-emerald-800 font-sans text-[8px] font-bold opacity-30">SOMA District</text>
-          <text x="65%" y="65%" className="fill-emerald-800 font-sans text-[8px] font-bold opacity-30 font-medium">Financial District</text>
+          <text x="2%" y="62%" className="fill-slate-400 font-mono text-[8px] tracking-wide font-normal opacity-50 uppercase">Metro Corridor Link</text>
+          <text x="52%" y="45%" className="fill-slate-400 font-mono text-[8px] tracking-wide font-normal opacity-50 uppercase">Ring Road Expressway</text>
+          <text x="18%" y="15%" className="fill-emerald-800 font-sans text-[8px] font-bold opacity-30">Indiranagar Tech Zone</text>
+          <text x="65%" y="65%" className="fill-emerald-800 font-sans text-[8px] font-bold opacity-30 font-medium">Bandra Executive Hub</text>
 
           {/* User Location Pulsing Dot */}
           <g transform={`translate(${activeUserPos.x}, ${activeUserPos.y})`}>
@@ -202,7 +202,7 @@ export default function MapView({
                   </span>
                   <span className="text-slate-400">•</span>
                   <span className="text-slate-500 font-medium">
-                    {calculateDistance(userLat, userLng, selectedSpace.lat, selectedSpace.lng)} miles away
+                    {calculateDistance(userLat, userLng, selectedSpace.lat, selectedSpace.lng)} km away
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-0.5 truncate">{selectedSpace.address}</p>

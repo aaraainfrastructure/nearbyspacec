@@ -62,7 +62,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
       setIsSubmitting(false);
       // Login as a user-generated profile using the entered phone
       const phoneUser: User = {
-        id: `usr-custom-${Date.now()}`,
+        id: crypto.randomUUID(),
         name: `User ${phone.slice(-4)}`,
         email: `phone_user_${phone.slice(-4)}@nearbyspace.com`,
         phone: phone,
@@ -92,7 +92,7 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
     setTimeout(() => {
       setIsSubmitting(false);
       const googleUser: User = {
-        id: `usr-google-${Date.now()}`,
+        id: crypto.randomUUID(),
         name: name,
         email: email,
         role: 'user',
