@@ -22,8 +22,8 @@ export function mapSpace(row: any): Space {
     address: row.address,
     city: row.city,
     locality: row.locality,
-    lat: Number(row.latitude),
-    lng: Number(row.longitude),
+    lat: Number(row.lat),
+    lng: Number(row.lng),
     pricePerDay: Number(row.price_per_day),
     pricePerHour: Number(row.price_per_hour),
     amenities: row.amenities || [],
@@ -46,11 +46,11 @@ export function mapBooking(row: any): Booking {
     spacePhoto: row.space_photo,
     userId: row.user_id,
     userName: row.user_name,
-    date: row.booking_date,
+    date: row.date,
     durationDays: row.duration_days ? Number(row.duration_days) : undefined,
     startTime: row.start_time || undefined,
     endTime: row.end_time || undefined,
-    type: row.booking_type,
+    type: row.type,
     seatsBooked: Number(row.seats_booked),
     totalPrice: Number(row.total_price),
     status: row.status,
@@ -67,7 +67,7 @@ export function mapReview(row: any): Review {
     userAvatar: row.user_avatar,
     rating: Number(row.rating),
     comment: row.comment || '',
-    date: row.created_at ? row.created_at.split('T')[0] : '',
+    date: row.date ? row.date.split('T')[0] : '',
   };
 }
 
@@ -109,8 +109,8 @@ export function dbSpace(space: Partial<Space>): any {
   if (space.address !== undefined) row.address = space.address;
   if (space.city !== undefined) row.city = space.city;
   if (space.locality !== undefined) row.locality = space.locality;
-  if (space.lat !== undefined) row.latitude = space.lat;
-  if (space.lng !== undefined) row.longitude = space.lng;
+  if (space.lat !== undefined) row.lat = space.lat;
+  if (space.lng !== undefined) row.lng = space.lng;
   if (space.pricePerDay !== undefined) row.price_per_day = space.pricePerDay;
   if (space.pricePerHour !== undefined) row.price_per_hour = space.pricePerHour;
   if (space.amenities !== undefined) row.amenities = space.amenities;
@@ -133,11 +133,11 @@ export function dbBooking(booking: Partial<Booking>): any {
   if (booking.spacePhoto !== undefined) row.space_photo = booking.spacePhoto;
   if (booking.userId !== undefined) row.user_id = booking.userId;
   if (booking.userName !== undefined) row.user_name = booking.userName;
-  if (booking.date !== undefined) row.booking_date = booking.date;
+  if (booking.date !== undefined) row.date = booking.date;
   if (booking.durationDays !== undefined) row.duration_days = booking.durationDays;
   if (booking.startTime !== undefined) row.start_time = booking.startTime;
   if (booking.endTime !== undefined) row.end_time = booking.endTime;
-  if (booking.type !== undefined) row.booking_type = booking.type;
+  if (booking.type !== undefined) row.type = booking.type;
   if (booking.seatsBooked !== undefined) row.seats_booked = booking.seatsBooked;
   if (booking.totalPrice !== undefined) row.total_price = booking.totalPrice;
   if (booking.status !== undefined) row.status = booking.status;
@@ -154,6 +154,7 @@ export function dbReview(review: Partial<Review>): any {
   if (review.userAvatar !== undefined) row.user_avatar = review.userAvatar;
   if (review.rating !== undefined) row.rating = review.rating;
   if (review.comment !== undefined) row.comment = review.comment;
+  if (review.date !== undefined) row.date = review.date;
   return row;
 }
 

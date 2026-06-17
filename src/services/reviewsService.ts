@@ -7,7 +7,7 @@ export const reviewsService = {
     const { data, error } = await supabase
       .from('reviews')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('date', { ascending: false });
 
     if (error) throw error;
     return (data || []).map(mapReview);
@@ -18,7 +18,7 @@ export const reviewsService = {
       .from('reviews')
       .select('*')
       .eq('space_id', spaceId)
-      .order('created_at', { ascending: false });
+      .order('date', { ascending: false });
 
     if (error) throw error;
     return (data || []).map(mapReview);
