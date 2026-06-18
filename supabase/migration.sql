@@ -156,6 +156,6 @@ INSERT INTO bookings (id, space_id, space_name, space_photo, user_id, user_name,
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO reviews (id, space_id, user_id, user_name, user_avatar, rating, comment, created_at) VALUES
-('r0000000-0000-0000-0000-000000000001', 'e6401f78-1111-43cf-a0e2-e1927361a9aa', '550e8400-e29b-41d4-a716-446655440001', 'Rajesh Gupta', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', 5.0, 'Superb atmosphere! Quick access to Indiranagar Metro Station makes commuting flawless. Blazing symmetric internet speed.', '2026-06-05T00:00:00Z'),
-('r0000000-0000-0000-0000-000000000002', 'e6401f78-1111-43cf-a0e2-e1927361a9aa', '550e8400-e29b-41d4-a716-446655440000', 'Rahul Sharma', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150', 5.0, 'The South Indian filter coffee is incredible! Highly recommended daily desk.', '2026-06-14T00:00:00Z')
+('f0000000-0000-0000-0000-000000000001', 'e6401f78-1111-43cf-a0e2-e1927361a9aa', '550e8400-e29b-41d4-a716-446655440001', 'Rajesh Gupta', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', 5.0, 'Superb atmosphere! Quick access to Indiranagar Metro Station makes commuting flawless. Blazing symmetric internet speed.', '2026-06-05T00:00:00Z'),
+('f0000000-0000-0000-0000-000000000002', 'e6401f78-1111-43cf-a0e2-e1927361a9aa', '550e8400-e29b-41d4-a716-446655440000', 'Rahul Sharma', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=150', 5.0, 'The South Indian filter coffee is incredible! Highly recommended daily desk.', '2026-06-14T00:00:00Z')
 ON CONFLICT (id) DO NOTHING;
